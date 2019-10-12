@@ -1,0 +1,506 @@
+/*******************************************************************
+    Connect to Twtich Chat with a Bot
+   Created with code from TheOtherLoneStar (https://www.twitch.tv/theotherlonestar)
+   Hackaday IO: https://hackaday.io/otherlonestar
+   By Brian Lough (https://www.twitch.tv/brianlough)
+   YouTube: https://www.youtube.com/channel/UCezJOfu7OtqGzd5xrP3q6WA
+  Created with code from noycebru www.twitch.tv/noycebru
+ *******************************************************************/
+ 
+#include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
+#include <IRCClient.h>
+//#include <Servo.h>
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+
+
+#define SERVOMIN  125 //can be adjusted
+#define SERVOMAX  575 //can be adjusted
+//Servo servo;
+ 
+//define your default values here, if there are different values in config.json, they are overwritten.
+ 
+#define IRC_SERVER   "irc.chat.twitch.tv"
+#define IRC_PORT     6667
+ 
+//------- Replace the following! ------
+char ssid[] = "";       // your network SSID (name)
+char password[] = "";  // your network key
+ 
+//The name of the channel that you want the bot to join
+const String twitchChannelName = "noycebru";
+ 
+//The name that you want the bot to have
+#define TWITCH_BOT_NAME "noycebru"
+ 
+//OAuth Key for your twitch bot
+// https://twitchapps.com/tmi/
+#define TWITCH_OAUTH_TOKEN "oauth:"
+ 
+ 
+//------------------------------
+ 
+ 
+//int led = 5;
+//int Slap = 12;
+int sda = 4;
+int scl = 5;
+int addr = 0x40; //default adafruit address
+int Axis_1_Angle = 90; //base
+int Axis_2_Angle = 90; //lower arm
+int Axis_3_Angle = 90; //horizontal arm
+ 
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(addr, &Wire);
+String ircChannel = "";
+ 
+WiFiClient wiFiClient;
+IRCClient client(IRC_SERVER, IRC_PORT, wiFiClient);
+ 
+// put your setup code here, to run once:
+void setup() {
+  Serial.begin(115200);
+  Serial.println("Hello");
+  Wire.begin(sda, scl);
+  pwm.begin();
+  pwm.setPWMFreq(60); //ada fruit mentions 50hz
+  yield();
+  //pinMode(led, OUTPUT);
+  //pinMode(Slap, OUTPUT);
+  //servo.attach(12);
+  //servo.write(0);
+  //delay(2000);
+  //Serial.begin(115200);
+  //Serial.println();
+ 
+  // Set WiFi to station mode and disconnect from an AP if it was Previously
+  // connected
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
+ 
+  // Attempt to connect to Wifi network:
+  Serial.print("Connecting Wifi: ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  IPAddress ip = WiFi.localIP();
+  Serial.println(ip);
+ 
+  ircChannel = "#" + twitchChannelName;
+ 
+  client.setCallback(callback);
+}
+int angleToPulse(int ang) {
+  int pulse = map(ang, 0, 180, SERVOMIN, SERVOMAX); // map angle of 0 to 180 to Servo min and Servo max
+  Serial.print("Angle: "); Serial.print(ang);
+  Serial.print(" pulse: "); Serial.println(pulse);
+  return pulse;
+}
+void loop() {
+ 
+  // Try to connect to chat. If it loses connection try again
+  if (!client.connected()) {
+    Serial.println("Attempting to connect to " + ircChannel );
+    // Attempt to connect
+    // Second param is not needed by Twtich
+    if (client.connect(TWITCH_BOT_NAME, "", TWITCH_OAUTH_TOKEN)) {
+      client.sendRaw("JOIN " + ircChannel);
+      Serial.println("connected and ready to rock");
+      sendTwitchMessage("noice!");
+    } else {
+      Serial.println("failed... try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+    return;
+  }
+  client.loop();
+}
+ 
+void sendTwitchMessage(String message) {
+  client.sendMessage(ircChannel, message);
+}
+ 
+ 
+void callback(IRCMessage ircMessage) {
+  //Serial.println("In CallBack");
+ 
+  if (ircMessage.command == "PRIVMSG" && ircMessage.text[0] != '\001') {
+    //Serial.println("Passed private message.");
+ 
+    ircMessage.nick.toUpperCase();
+ 
+    String message("<" + ircMessage.nick + "> " + ircMessage.text);
+ 
+    //prints chat to serial
+    Serial.println(message);
+    if (ircMessage.text.indexOf("!base") > -1 )
+    {
+ 
+      if (Axis_1_Angle >= 90)
+      {
+        for (Axis_1_Angle; Axis_1_Angle > 90; Axis_1_Angle--)// >90 decrease incremitally
+        {
+          delay(100); //delay 10th of second
+          pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle)); //
+          Serial.print("Axis_1_Angle");
+        }
+      }
+ 
+      if (Axis_1_Angle <= 90)
+      {
+        for (Axis_1_Angle; Axis_1_Angle < 90; Axis_1_Angle++)
+        {
+          delay(100);
+          pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle));
+        }
+      }
+ 
+    }
+ 
+    if (ircMessage.text.indexOf("!basergt") > -1 ) {
+ 
+      if (Axis_1_Angle >= 30)
+      {
+        for (Axis_1_Angle; Axis_1_Angle > 30; Axis_1_Angle--)// >90 decrease incremitally
+        {
+          delay(100); //delay 10th of second
+          pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle)); //
+          Serial.print("Axis_1_Angle");
+        }
+      }
+ 
+      if (Axis_1_Angle <= 30)
+      {
+        for (Axis_1_Angle; Axis_1_Angle < 30; Axis_1_Angle++)
+        {
+          delay(100);
+          pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle));
+        }
+      }
+    }
+    if (ircMessage.text.indexOf("!baselft") > -1 ) {
+ 
+      if (Axis_1_Angle >= 120)
+      {
+        for (Axis_1_Angle; Axis_1_Angle > 120; Axis_1_Angle--)// >90 decrease incremitally
+        {
+          delay(100); //delay 10th of second
+          pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle)); //
+          Serial.print("Axis_1_Angle");
+        }
+      }
+ 
+      if (Axis_1_Angle <= 120)
+      {
+        for (Axis_1_Angle; Axis_1_Angle < 120; Axis_1_Angle++)
+        {
+          delay(100);
+          pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle));
+        }
+      }
+    }
+ 
+    if (ircMessage.text.indexOf("!nudge+") > -1 )
+    {
+      int number_degres_per_command = 10;
+      int final_angle = Axis_1_Angle + number_degres_per_command;
+      if (final_angle > 180)
+      {
+        final_angle = 180;
+      }
+      for (Axis_1_Angle; Axis_1_Angle < final_angle; Axis_1_Angle++)
+      {
+        delay(100);
+        pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle));
+        Serial.print("Angle: "); Serial.print(Axis_1_Angle);
+      }
+    }
+ 
+    if (ircMessage.text.indexOf("!nudge-") > -1 )
+    {
+      int number_degres_per_command = 10;
+      int final_angle = Axis_1_Angle + number_degres_per_command;
+      if (final_angle > 180)
+      {
+        final_angle = 180;
+      }
+      for (Axis_1_Angle; Axis_1_Angle < final_angle; Axis_1_Angle++)
+      {
+        delay(100);
+        pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle));
+        Serial.print("Angle: "); Serial.print(Axis_1_Angle);
+      }
+    }
+ 
+    if (ircMessage.text.indexOf("!erect") > -1 )
+    {
+ 
+      if (Axis_2_Angle >= 90)
+      {
+        for (Axis_2_Angle; Axis_2_Angle > 90; Axis_2_Angle--)// >90 decrease incremitally
+        {
+          delay(50); //delay 10th of second
+          pwm.setPWM(1, 0, angleToPulse(Axis_2_Angle)); //
+          Serial.print("Axis_2_Angle");
+        }
+      }
+ 
+      if (Axis_2_Angle <= 90)
+      {
+        for (Axis_2_Angle; Axis_2_Angle < 90; Axis_2_Angle++)
+        {
+          delay(50);
+          pwm.setPWM(1, 0, angleToPulse(Axis_2_Angle));
+        }
+      }
+ 
+    }
+ 
+    if (ircMessage.text.indexOf("!erectfwd") > -1 ) {
+ 
+      if (Axis_2_Angle > 50)
+      {
+        for (Axis_2_Angle; Axis_2_Angle > 50; Axis_2_Angle--)// >90 decrease incremitally
+        {
+          delay(50); //delay 10th of second
+          pwm.setPWM(1, 0, angleToPulse(Axis_2_Angle)); //
+          Serial.print("Axis_2_Angle");
+        }
+      }
+ 
+      if (Axis_2_Angle < 50)
+      {
+        for (Axis_2_Angle; Axis_2_Angle < 50; Axis_2_Angle++)
+        {
+          delay(50);
+          pwm.setPWM(1, 0, angleToPulse(Axis_2_Angle));
+        }
+      }
+    }
+ 
+    if (ircMessage.text.indexOf("!erectback") > -1 ) {
+ 
+      if (Axis_2_Angle > 130)
+      {
+        for (Axis_2_Angle; Axis_2_Angle > 130; Axis_2_Angle--)// >90 decrease incremitally
+        {
+          delay(50); //delay 10th of second
+          pwm.setPWM(1, 0, angleToPulse(Axis_2_Angle)); //
+          Serial.print("Axis_2_Angle");
+        }
+      }
+ 
+      if (Axis_2_Angle < 130)
+      {
+        for (Axis_2_Angle; Axis_2_Angle < 130; Axis_2_Angle++)
+        {
+          delay(50);
+          pwm.setPWM(1, 0, angleToPulse(Axis_2_Angle));
+        }
+      }
+    }
+ 
+    if (ircMessage.text.indexOf("!center") > -1 )
+    {
+ 
+      if (Axis_3_Angle >= 90)
+      {
+        for (Axis_3_Angle; Axis_3_Angle > 90; Axis_3_Angle--)// >90 decrease incremitally
+        {
+          delay(100); //delay 10th of second
+          pwm.setPWM(2, 0, angleToPulse(Axis_3_Angle)); //
+          Serial.print("Axis_3_Angle");
+        }
+      }
+ 
+      if (Axis_3_Angle <= 90)
+      {
+        for (Axis_3_Angle; Axis_3_Angle < 90; Axis_3_Angle++)
+        {
+          delay(100);
+          pwm.setPWM(2, 0, angleToPulse(Axis_3_Angle));
+        }
+      }
+ 
+    }
+ 
+    if (ircMessage.text.indexOf("!centerup") > -1 ) {
+ 
+      if (Axis_3_Angle >= 30)
+      {
+        for (Axis_3_Angle; Axis_3_Angle > 30; Axis_3_Angle--)// >90 decrease incremitally
+        {
+          delay(100); //delay 10th of second
+          pwm.setPWM(2, 0, angleToPulse(Axis_3_Angle)); //
+          Serial.print("Axis_2_Angle");
+        }
+      }
+ 
+      if (Axis_3_Angle <= 30)
+      {
+        for (Axis_3_Angle; Axis_3_Angle < 30; Axis_3_Angle++)
+        {
+          delay(100);
+          pwm.setPWM(2, 0, angleToPulse(Axis_3_Angle));
+        }
+      }
+ 
+    }
+ if (ircMessage.text.indexOf("!centerdown") > -1 ) {
+ 
+      if (Axis_3_Angle >= 130)
+      {
+        for (Axis_3_Angle; Axis_3_Angle > 130; Axis_3_Angle--)// >90 decrease incremitally
+        {
+          delay(100); //delay 10th of second
+          pwm.setPWM(2, 0, angleToPulse(Axis_3_Angle)); //
+          Serial.print("Axis_2_Angle");
+        }
+      }
+ 
+      if (Axis_3_Angle <= 130)
+      {
+        for (Axis_3_Angle; Axis_3_Angle < 130; Axis_3_Angle++)
+        {
+          delay(100);
+          pwm.setPWM(2, 0, angleToPulse(Axis_3_Angle));
+        }
+      }
+ 
+    }
+    if (ircMessage.text.indexOf("!home") > -1 ) {
+ 
+      if (Axis_1_Angle >= 90)
+      {
+        for (Axis_1_Angle; Axis_1_Angle > 90; Axis_1_Angle--)// >90 decrease incremitally
+        {
+          delay(100); //delay 10th of second
+          pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle)); //
+          Serial.print("Axis_2_Angle");
+        }
+      }
+ 
+      if (Axis_1_Angle <= 90)
+      {
+        for (Axis_1_Angle; Axis_1_Angle < 90; Axis_1_Angle++)
+        {
+          delay(100);
+          pwm.setPWM(0, 0, angleToPulse(Axis_1_Angle));
+        }
+      }
+ 
+      if (Axis_2_Angle >= 90)
+      {
+        for (Axis_2_Angle; Axis_2_Angle > 90; Axis_2_Angle--)// >90 decrease incremitally
+        {
+          delay(100); //delay 10th of second
+          pwm.setPWM(1, 0, angleToPulse(Axis_2_Angle)); //
+          Serial.print("Axis_2_Angle");
+        }
+      }
+ 
+      if (Axis_2_Angle <= 90)
+      {
+        for (Axis_2_Angle; Axis_2_Angle < 90; Axis_2_Angle++)
+        {
+          delay(100);
+          pwm.setPWM(1, 0, angleToPulse(Axis_2_Angle));
+        }
+      }
+ 
+      if (Axis_3_Angle >= 90)
+      {
+        for (Axis_3_Angle; Axis_3_Angle > 90; Axis_3_Angle--)// >90 decrease incremitally
+        {
+          delay(100); //delay 10th of second
+          pwm.setPWM(2, 0, angleToPulse(Axis_3_Angle)); //
+          Serial.print("Axis_2_Angle");
+        }
+      }
+ 
+      if (Axis_3_Angle <= 90)
+      {
+        for (Axis_3_Angle; Axis_3_Angle < 90; Axis_3_Angle++)
+        {
+          delay(100);
+          pwm.setPWM(2, 0, angleToPulse(Axis_3_Angle));
+        }
+      }
+ 
+    }
+ 
+    //for( int angle = pwm.getPWM(1); angle<121; angle +=2){
+    // letnic addition map(pwm.getPWM(1), 0, 4096, 0, 180);
+    //pwm.setPWM(1, 0, angleToPulse(angle) );
+    //delay(100);
+    //}
+    //for( int angle =0; angle<181; angle +=2){
+    //delay(10);
+    //pwm.setPWM(2, 0, angleToPulse(angle) );
+    //}
+    //int leftArm, pwm.setPWM(leftArm, 0 , angle)
+    //pwm.setPWM(0, 0, angleToPulse(90));
+    //pwm.setPWM(1, 0, angleToPulse(60));
+    //pwm.setPWM(2, 0, angleToPulse(60));
+    //delay(1000);
+    //pwm.setPWM(0, 0, angleToPulse(90));
+    //pwm.setPWM(1, 0, angleToPulse(130));
+    //pwm.setPWM(2, 0, angleToPulse(60));
+    //delay(1000);
+ 
+    yield();
+ 
+  }
+ 
+ 
+ 
+  //if (ircMessage.text.indexOf("streaming") > -1 && ircMessage.nick == "STREAMELEMENTS")
+  //{
+ 
+  //digitalWrite(led, HIGH);
+  //delay(10000);
+  //digitalWrite(led, LOW);
+  //delay(25);
+ 
+  // }
+ 
+  //if (ircMessage.text.indexOf("offline") > -1 && ircMessage.nick == "STREAMELEMENTS")
+  //{
+ 
+  //digitalWrite(led, HIGH);
+  //delay(10000);
+  //digitalWrite(led, LOW);
+  //delay(25);
+ 
+  //}
+  //if (ircMessage.text.indexOf("following") > -1 && ircMessage.nick == "STREAMELEMENTS")
+  //{
+  // for (int i = 0; i <= 0; i++) {
+ 
+  //servo.write(180);
+  //delay(200);
+ 
+  //}
+  //for (int i = 1; i <= 3; i++) {
+ 
+  //servo.write(180);
+  //delay(500);
+  //servo.write(100);
+  //delay(200);
+  // }
+  //for (int i = 3; i <= 3; i++) {
+ 
+  //servo.write(0);
+  //delay(500);
+  // }
+  //}
+ 
+  return;
+}
